@@ -46,6 +46,10 @@ class OCRConfig:
     PRECISION = os.getenv("OCR_PRECISION", "fp32")  # fp32, fp16
     LANGUAGE = "ch"  # 中文识别
     CONF_THRESHOLD = float(os.getenv("OCR_CONF_THRESHOLD", 0.3))
+    
+    # 懒加载配置
+    LAZY_LOAD = os.getenv("OCR_LAZY_LOAD", "true").lower() == "true"
+    WARMUP_ON_STARTUP = os.getenv("OCR_WARMUP_ON_STARTUP", "false").lower() == "true"
 
 
 # ===== 图像预处理配置 =====

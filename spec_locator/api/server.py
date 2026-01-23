@@ -10,6 +10,8 @@ import logging
 import os
 import tempfile
 from typing import Optional
+from contextlib import asynccontextmanager
+from threading import Thread
 import cv2
 import numpy as np
 
@@ -20,16 +22,68 @@ try:
 except ImportError:
     raise ImportError("FastAPI is required. Install with: pip install fastapi uvicorn")
 
-from spec_locator.config import APIConfig, ErrorCode, ERROR_MESSAGES, PathConfig, LOG_LEVEL
+from spec_locator.config import APIConfig, ErrorCode, ERROR_MESSAGES, PathConfig, LOG_LEVEL, OCRConfig
 from spec_locator.core import SpecLocatorPipeline
 
 logger = logging.getLogger(__name__)
+
+# 全局变量：延迟初始化
+pipeline = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    应用生命周期管理
+    - startup: 初始化Pipeline，可选后台预热OCR
+    - shutdown: 清理资源
+    """
+    # 启动时
+    global pipeline
+    logger.info("Spec Locator Service 启动中...")
+    
+    # 确保必要目录存在
+    PathConfig.ensure_dirs()
+    
+    # 验证数据目录
+    try:
+        PathConfig.validate_data_dir()
+        logger.info(f"数据目录: {PathConfig.SPEC_DATA_DIR}")
+    except (FileNotFoundError, NotADirectoryError) as e:
+        logger.warning(str(e))
+        logger.warning("数据目录不可用，文件查找功能将受限")
+    
+    # 初始化 Pipeline（懒加载模式）
+    pipeline = SpecLocatorPipeline(lazy_ocr=OCRConfig.LAZY_LOAD)
+    logger.info(f"✓ Pipeline 初始化完成（OCR 懒加载: {OCRConfig.LAZY_LOAD}）")
+    
+    # 可选：后台异步预热 OCR（不阻塞启动）
+    if OCRConfig.WARMUP_ON_STARTUP:
+        def warmup_in_background():
+            try:
+                logger.info("后台预热 OCR 模型...")
+                pipeline.warmup()
+                logger.info("✓ OCR 模型预热完成")
+            except Exception as e:
+                logger.error(f"OCR 预热失败: {e}")
+        
+        # 在后台线程中预热
+        warmup_thread = Thread(target=warmup_in_background, daemon=True)
+        warmup_thread.start()
+    
+    logger.info("✓ Spec Locator Service 启动完成")
+    
+    yield  # 应用运行中
+    
+    # 关闭时
+    logger.info("Spec Locator Service 关闭中...")
+    logger.info("✓ Spec Locator Service 已关闭")
 
 # 初始化 FastAPI 应用
 app = FastAPI(
     title="Spec Locator Service",
     description="CAD 规范定位识别服务",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # 添加 CORS 中间件，允许前端访问
@@ -41,47 +95,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 确保必要目录存在
-PathConfig.ensure_dirs()
-
-# 启动时验证数据目录
-try:
-    PathConfig.validate_data_dir()
-    logger.info(f"数据目录: {PathConfig.SPEC_DATA_DIR}")
-except (FileNotFoundError, NotADirectoryError) as e:
-    logger.warning(str(e))
-    logger.warning("数据目录不可用，文件查找功能将受限")
-
-# 初始化流水线
-pipeline = SpecLocatorPipeline()
-
-
-@app.on_event("startup")
-def startup_event():
-    """应用启动事件"""
-    logger.info("Spec Locator Service started")
-
-
-@app.on_event("shutdown")
-def shutdown_event():
-    """应用关闭事件"""
-    logger.info("Spec Locator Service stopped")
-
-
 @app.get("/health")
 def health_check():
     """健康检查端点"""
+    if pipeline is None:
+        return {
+            "status": "initializing",
+            "message": "服务正在初始化中"
+        }
+    
     stats = pipeline.file_index.get_stats()
     return {
         "status": "ok",
         "index_stats": stats,
+        "ocr_loaded": pipeline.ocr_engine._initialized,  # 显示OCR是否已加载
     }
 
 
 @app.post("/api/spec-locate")
 async def locate_spec(file: UploadFile = File(...)):
     """
-    规范定位识别接口
+    规范定位识别接口（会触发OCR懒加载）
 
     接收一张 CAD 截图，返回识别到的规范编号和页码
 
@@ -91,6 +125,9 @@ async def locate_spec(file: UploadFile = File(...)):
     Returns:
         JSON 响应
     """
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="服务正在初始化中，请稍后重试")
+    
     try:
         # 1. 文件验证
         if not file:

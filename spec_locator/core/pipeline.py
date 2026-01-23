@@ -28,6 +28,7 @@ class SpecLocatorPipeline:
         ocr_threshold: float = 0.3,
         max_distance: int = 100,
         data_dir: str = None,
+        lazy_ocr: bool = True,
     ):
         """
         初始化流水线
@@ -37,15 +38,22 @@ class SpecLocatorPipeline:
             ocr_threshold: OCR 置信度阈值
             max_distance: 最大邻近距离
             data_dir: 数据目录路径，默认使用配置中的 SPEC_DATA_DIR
+            lazy_ocr: 是否使用懒加载OCR（默认True）
         """
         self.preprocessor = ImagePreprocessor()
-        self.ocr_engine = OCREngine(use_gpu=use_gpu, conf_threshold=ocr_threshold)
+        self.ocr_engine = OCREngine(use_gpu=use_gpu, conf_threshold=ocr_threshold, lazy_load=lazy_ocr)
         self.spec_parser = SpecCodeParser()
         self.page_parser = PageCodeParser(max_distance=max_distance)
         self.confidence_evaluator = ConfidenceEvaluator()
         if data_dir is None:
             data_dir = PathConfig.SPEC_DATA_DIR
         self.file_index = FileIndex(data_dir=data_dir)
+    
+    def warmup(self):
+        """预热流水线：加载OCR模型"""
+        logger.info("Pipeline 预热中...")
+        self.ocr_engine.warmup()
+        logger.info("✓ Pipeline 预热完成")
 
     def process(self, image: np.ndarray) -> Dict[str, Any]:
         """

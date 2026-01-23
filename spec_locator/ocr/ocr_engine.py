@@ -2,9 +2,11 @@
 OCR 引擎封装模块
 - 集成 PaddleOCR
 - 输出带有位置信息的文本结果
+- 支持懒加载模式（首次使用时才加载模型）
 """
 
 import logging
+import threading
 from typing import List, Dict, Tuple, Any
 import numpy as np
 from dataclasses import dataclass
@@ -35,20 +37,29 @@ class TextBox:
 
 
 class OCREngine:
-    """OCR 引擎"""
+    """OCR 引擎（支持懒加载）"""
 
-    def __init__(self, use_gpu: bool = False, conf_threshold: float = 0.3):
+    def __init__(self, use_gpu: bool = False, conf_threshold: float = 0.3, lazy_load: bool = True):
         """
-        初始化 OCR 引擎
+        初始化 OCR 引擎（懒加载模式）
 
         Args:
             use_gpu: 是否使用 GPU
             conf_threshold: 置信度阈值
+            lazy_load: 是否使用懒加载（默认True，首次使用时才加载模型）
         """
         self.use_gpu = use_gpu
         self.conf_threshold = conf_threshold
         self.recognizer = None
-        self._initialize_ocr()
+        self._initialized = False  # 标记是否已初始化
+        self._init_lock = threading.Lock()  # 线程锁，确保线程安全
+        
+        if lazy_load:
+            logger.info("OCREngine 创建（懒加载模式，模型将在首次使用时加载）")
+        else:
+            logger.info("OCREngine 创建（立即加载模式）")
+            self._initialize_ocr()
+            self._initialized = True
 
     def _initialize_ocr(self):
         """
@@ -136,9 +147,36 @@ class OCREngine:
             logger.error(f"Unexpected error during PaddleOCR initialization: {e}")
             self.recognizer = None
 
+    def _ensure_initialized(self):
+        """
+        确保 OCR 已初始化（懒加载入口点）
+        使用双重检查锁定模式确保线程安全
+        """
+        if self._initialized:
+            return
+        
+        with self._init_lock:
+            # 双重检查：避免多线程重复初始化
+            if self._initialized:
+                return
+            
+            logger.info("首次使用 OCR，开始加载模型...")
+            self._initialize_ocr()
+            self._initialized = True
+            logger.info("✓ OCR 模型加载完成")
+    
+    def warmup(self):
+        """
+        预热方法：主动触发模型加载（可选）
+        可在后台线程或 FastAPI lifespan 中调用
+        """
+        logger.info("OCR 预热：主动加载模型...")
+        self._ensure_initialized()
+        logger.info("✓ OCR 预热完成")
+    
     def recognize(self, image: np.ndarray) -> List[TextBox]:
         """
-        识别图像中的文本
+        识别图像中的文本（懒加载版本）
 
         Args:
             image: 输入图像（BGR 或灰度格式）
@@ -146,8 +184,11 @@ class OCREngine:
         Returns:
             文本框列表
         """
+        # 懒加载：首次调用时才初始化
+        self._ensure_initialized()
+        
         if self.recognizer is None:
-            logger.error("OCR engine not initialized")
+            logger.error("OCR engine 初始化失败")
             return []
 
         try:
