@@ -1,0 +1,43 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Data and large files
+data/
+output_pages/
+pages/
+*.rar
+*.zip
+
+# Test outputs
+test_output_*/
+test_split_output/
+
+# Runtime generated files
+spec_locator/logs/
+spec_locator/uploads/
+spec_locator/temp/
+
+# Database files
+rag_demo/chroma_db/
+*.sqlite3
+
+# Cache files
+rag_demo/processed_chunk_hashes*.json
+*.pyc
+*.pyo
+*.pyd
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

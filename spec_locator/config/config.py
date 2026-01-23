@@ -1,0 +1,98 @@
+"""
+全局配置管理
+"""
+
+import os
+from enum import Enum
+
+# ===== 基础配置 =====
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# ===== 错误码定义 =====
+class ErrorCode(str, Enum):
+    """错误码枚举"""
+    NO_TEXT = "NO_TEXT"  # 未识别到有效文本
+    NO_SPEC_CODE = "NO_SPEC_CODE"  # 未识别到规范编号
+    NO_PAGE_CODE = "NO_PAGE_CODE"  # 未识别到页码
+    NO_MATCH = "NO_MATCH"  # 无法组合有效结果
+    INTERNAL_ERROR = "INTERNAL_ERROR"  # 内部错误
+    INVALID_FILE = "INVALID_FILE"  # 无效文件
+
+
+ERROR_MESSAGES = {
+    ErrorCode.NO_TEXT: "Failed to recognize text in image.",
+    ErrorCode.NO_SPEC_CODE: "Failed to identify spec code from image.",
+    ErrorCode.NO_PAGE_CODE: "Failed to identify page code from image.",
+    ErrorCode.NO_MATCH: "Failed to identify spec code or page from image.",
+    ErrorCode.INTERNAL_ERROR: "Internal server error.",
+    ErrorCode.INVALID_FILE: "Invalid file format. Supported: png, jpg, jpeg.",
+}
+
+# ===== 规范编号正则规则 =====
+# 匹配如 12J2, 20G908-1, 23J908-8 等规范编号（允许空格）
+SPEC_CODE_PATTERN = r"(\d{2,3}\s*[A-Z]\s*\d{1,3}(?:-\d+)?)"
+
+# ===== 页码正则规则 =====
+# 匹配如 C11, C11-2, P23 等页码前缀
+PAGE_PREFIX_PATTERN = r"([A-Z])(\d{1,3})"
+# 匹配页码后缀
+PAGE_SUFFIX_PATTERN = r"-(\d+)"
+
+# ===== OCR 配置 =====
+class OCRConfig:
+    """OCR 引擎配置"""
+    USE_GPU = os.getenv("OCR_USE_GPU", "false").lower() == "true"
+    PRECISION = os.getenv("OCR_PRECISION", "fp32")  # fp32, fp16
+    LANGUAGE = "ch"  # 中文识别
+    CONF_THRESHOLD = float(os.getenv("OCR_CONF_THRESHOLD", 0.3))
+
+
+# ===== 图像预处理配置 =====
+class PreprocessConfig:
+    """图像预处理配置"""
+    MAX_IMAGE_SIZE = 4096  # 最大图像尺寸
+    MIN_IMAGE_SIZE = 100   # 最小图像尺寸
+    ENHANCE_CONTRAST = True  # 是否增强对比度
+    REMOVE_LINES = True  # 是否去除结构线
+
+
+# ===== 几何关系配置 =====
+class GeometryConfig:
+    """几何关系计算配置"""
+    MAX_DISTANCE = 100  # 最大邻近距离（像素）
+    DIRECTION_TOLERANCE = 30  # 方向容差（度）
+
+
+# ===== 置信度配置 =====
+class ConfidenceConfig:
+    """置信度评估配置"""
+    OCR_WEIGHT = 0.5  # OCR 置信度权重
+    GEOMETRY_WEIGHT = 0.3  # 几何关系权重
+    PATTERN_WEIGHT = 0.2  # 模式匹配权重
+    MIN_CONFIDENCE = 0.1  # 最小置信度阈值
+
+
+# ===== API 配置 =====
+class APIConfig:
+    """API 服务配置"""
+    HOST = os.getenv("API_HOST", "0.0.0.0")
+    PORT = int(os.getenv("API_PORT", 8000))
+    WORKERS = int(os.getenv("API_WORKERS", 4))
+    MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
+    ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
+
+
+# ===== 文件路径配置 =====
+class PathConfig:
+    """文件路径配置"""
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    UPLOAD_DIR = os.path.join(PROJECT_ROOT, "uploads")
+    TEMP_DIR = os.path.join(PROJECT_ROOT, "temp")
+    LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+
+    @staticmethod
+    def ensure_dirs():
+        """确保必要目录存在"""
+        for dir_path in [PathConfig.UPLOAD_DIR, PathConfig.TEMP_DIR, PathConfig.LOG_DIR]:
+            os.makedirs(dir_path, exist_ok=True)
