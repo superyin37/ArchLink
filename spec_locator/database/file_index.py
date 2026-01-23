@@ -12,6 +12,8 @@ from typing import List, Optional, Dict
 from dataclasses import dataclass
 from pathlib import Path
 
+from spec_locator.config import PathConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,11 +35,10 @@ class FileIndex:
         初始化文件索引
 
         Args:
-            data_dir: 数据目录路径，默认为 output_pages
+            data_dir: 数据目录路径，默认使用配置中的 SPEC_DATA_DIR
         """
         if data_dir is None:
-            project_root = Path(__file__).parent.parent.parent
-            data_dir = project_root / "output_pages"
+            data_dir = PathConfig.SPEC_DATA_DIR
         
         self.data_dir = Path(data_dir)
         self.index: Dict[str, List[SpecFile]] = {}

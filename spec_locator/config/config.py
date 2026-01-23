@@ -87,12 +87,42 @@ class APIConfig:
 class PathConfig:
     """文件路径配置"""
     PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    UPLOAD_DIR = os.path.join(PROJECT_ROOT, "uploads")
-    TEMP_DIR = os.path.join(PROJECT_ROOT, "temp")
-    LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+    
+    # 数据目录 - 支持环境变量配置
+    SPEC_DATA_DIR = os.getenv(
+        "SPEC_DATA_DIR",
+        os.path.join(os.path.dirname(PROJECT_ROOT), "output_pages")  # 默认 ../output_pages
+    )
+    
+    # 其他目录（可通过环境变量配置）
+    UPLOAD_DIR = os.getenv(
+        "SPEC_UPLOAD_DIR",
+        os.path.join(PROJECT_ROOT, "uploads")
+    )
+    TEMP_DIR = os.getenv(
+        "SPEC_TEMP_DIR",
+        os.path.join(PROJECT_ROOT, "temp")
+    )
+    LOG_DIR = os.getenv(
+        "SPEC_LOG_DIR",
+        os.path.join(PROJECT_ROOT, "logs")
+    )
 
     @staticmethod
     def ensure_dirs():
         """确保必要目录存在"""
         for dir_path in [PathConfig.UPLOAD_DIR, PathConfig.TEMP_DIR, PathConfig.LOG_DIR]:
             os.makedirs(dir_path, exist_ok=True)
+    
+    @staticmethod
+    def validate_data_dir():
+        """验证数据目录是否存在且可访问"""
+        if not os.path.exists(PathConfig.SPEC_DATA_DIR):
+            raise FileNotFoundError(
+                f"数据目录不存在: {PathConfig.SPEC_DATA_DIR}\n"
+                f"请设置环境变量 SPEC_DATA_DIR 或创建默认目录"
+            )
+        if not os.path.isdir(PathConfig.SPEC_DATA_DIR):
+            raise NotADirectoryError(
+                f"SPEC_DATA_DIR 不是有效目录: {PathConfig.SPEC_DATA_DIR}"
+            )

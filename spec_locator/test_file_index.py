@@ -3,8 +3,10 @@
 """
 
 from spec_locator.database import FileIndex
+from spec_locator.config import PathConfig
 
-# 初始化索引
+# 显示使用的数据目录
+print(f"数据目录: {PathConfig.SPEC_DATA_DIR}")
 print("Building file index...")
 index = FileIndex()
 

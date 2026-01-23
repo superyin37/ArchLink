@@ -1,8 +1,30 @@
 # Spec Locator Service - 快速启动
 
+## 配置说明
+
+### 环境变量配置
+
+项目支持通过环境变量进行配置。创建 `.env` 文件或设置系统环境变量：
+
+**主要配置项：**
+- `SPEC_DATA_DIR`: 规范文件索引目录（默认：`../output_pages`）
+- `API_PORT`: API服务端口（默认：`8000`）
+- `LOG_LEVEL`: 日志级别（默认：`INFO`）
+- `DEBUG`: 调试模式（默认：`false`）
+
+**配置方法：**
+1. 复制 `.env.example` 为 `.env`
+2. 根据实际情况修改配置值
+3. 或在启动脚本中设置环境变量
+
 ## 启动服务
 
-激活环境
+**方式1：使用启动脚本（推荐）**
+```bat
+start_demo.bat
+```
+
+**方式2：手动启动**
 ```powershell
 cd D:\projects\liuzong\spec_locator
 .\.venv\Scripts\Activate.ps1

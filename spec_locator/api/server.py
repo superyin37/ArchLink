@@ -41,11 +41,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 初始化流水线
-pipeline = SpecLocatorPipeline()
-
 # 确保必要目录存在
 PathConfig.ensure_dirs()
+
+# 启动时验证数据目录
+try:
+    PathConfig.validate_data_dir()
+    logger.info(f"数据目录: {PathConfig.SPEC_DATA_DIR}")
+except (FileNotFoundError, NotADirectoryError) as e:
+    logger.warning(str(e))
+    logger.warning("数据目录不可用，文件查找功能将受限")
+
+# 初始化流水线
+pipeline = SpecLocatorPipeline()
 
 
 @app.on_event("startup")

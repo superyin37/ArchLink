@@ -16,6 +16,8 @@ if %errorlevel% neq 0 (
 
 echo [2/3] 设置环境变量...
 set PYTHONPATH=%CD%;%PYTHONPATH%
+REM 可选：设置数据目录（默认使用 .env 文件或 ../output_pages）
+REM set SPEC_DATA_DIR=D:\projects\liuzong\output_pages
 
 echo 服务地址: http://127.0.0.1:8002
 echo API文档: http://127.0.0.1:8002/docs

@@ -9,7 +9,7 @@ import logging
 import numpy as np
 from typing import List, Optional, Dict, Any
 
-from spec_locator.config import ErrorCode, ERROR_MESSAGES
+from spec_locator.config import ErrorCode, ERROR_MESSAGES, PathConfig
 from spec_locator.preprocess import ImagePreprocessor
 from spec_locator.ocr import OCREngine
 from spec_locator.parser import SpecCodeParser, PageCodeParser
@@ -36,13 +36,15 @@ class SpecLocatorPipeline:
             use_gpu: 是否使用 GPU
             ocr_threshold: OCR 置信度阈值
             max_distance: 最大邻近距离
-            data_dir: 数据目录路径
+            data_dir: 数据目录路径，默认使用配置中的 SPEC_DATA_DIR
         """
         self.preprocessor = ImagePreprocessor()
         self.ocr_engine = OCREngine(use_gpu=use_gpu, conf_threshold=ocr_threshold)
         self.spec_parser = SpecCodeParser()
         self.page_parser = PageCodeParser(max_distance=max_distance)
         self.confidence_evaluator = ConfidenceEvaluator()
+        if data_dir is None:
+            data_dir = PathConfig.SPEC_DATA_DIR
         self.file_index = FileIndex(data_dir=data_dir)
 
     def process(self, image: np.ndarray) -> Dict[str, Any]:
