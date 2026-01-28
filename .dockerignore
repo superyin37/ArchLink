@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+ENV/
+env/
+*.virtualenv
+
+# 大数据目录（通过 Volume 挂载，不打包进镜像）
+output_pages/
+data/
+pages/
+test_output_20260116/
+test_split_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 日志和临时文件
+*.log
+logs/
+temp/
+uploads/
+spec_locator/logs/
+spec_locator/temp/
+spec_locator/uploads/
+
+# 测试和开发
+tests/
+test_*.py
+*_test.py
+pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 文档（保留主要 README）
+*.md
+!README.md
+!DOCKER_README.md
+COMPLETION_REPORT.md
+DEVELOPMENT.md
+DEPLOYMENT_READINESS_CHECK.md
+*.txt
+!requirements.txt
+
+# 配置文件（使用环境变量）
+.env
+.env.local
+.env.*.local
+
+# 数据库文件
+*.sqlite3
+*.db
+chroma_db/
+rag_demo/chroma_db/
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# 其他
+*.bak
+*.tmp
+*.swp
+*.swo
+*~
+.cache/
+node_modules/

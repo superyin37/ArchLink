@@ -1,0 +1,113 @@
+# =============================================================================
+# Spec Locator Service - Docker Compose 配置
+# =============================================================================
+# 单容器方案：spec_locator 服务 + 外部 Volume 挂载
+
+services:
+  # ---------------------------------------------------------------------------
+  # 规范定位识别服务
+  # ---------------------------------------------------------------------------
+  spec-locator:
+    # 镜像构建配置
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # 容器名称
+    container_name: spec-locator
+    
+    # 镜像名称和标签
+    image: spec-locator:1.0.0
+    
+    # 容器重启策略：自动重启
+    restart: always
+    
+    # 端口映射：宿主机端口:容器端口
+    ports:
+      - "8002:8002"
+    
+    # Volume 挂载（数据持久化）
+    volumes:
+      # 只读：PDF 规范文件数据（避免误修改）
+      - ./output_pages:/app/data/output_pages:ro
+      
+      # 读写：工作目录（需要持久化）
+      - ./spec_locator/uploads:/app/uploads:rw
+      - ./spec_locator/logs:/app/logs:rw
+      - ./spec_locator/temp:/app/temp:rw
+    
+    # 环境变量配置
+    environment:
+      # 数据目录（容器内路径）
+      - SPEC_DATA_DIR=/app/data/output_pages
+      - SPEC_UPLOAD_DIR=/app/uploads
+      - SPEC_TEMP_DIR=/app/temp
+      - SPEC_LOG_DIR=/app/logs
+      
+      # API 服务配置
+      - API_HOST=0.0.0.0
+      - API_PORT=8002
+      - API_WORKERS=4
+      
+      # 日志配置
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      
+      # OCR 配置
+      - OCR_USE_GPU=false
+      - OCR_PRECISION=fp32
+      - OCR_CONF_THRESHOLD=0.3
+      - OCR_LAZY_LOAD=true
+      - OCR_WARMUP_ON_STARTUP=true
+      
+      # 系统配置
+      - TZ=Asia/Shanghai
+      - PYTHONIOENCODING=utf-8
+    
+    # 资源限制（可选，根据实际情况调整）
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'      # 最大 2 个 CPU 核心
+          memory: 2G       # 最大 2GB 内存
+        reservations:
+          cpus: '0.5'      # 保留 0.5 个 CPU 核心
+          memory: 512M     # 保留 512MB 内存
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 网络配置
+    networks:
+      - app-network
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# 网络配置
+# =============================================================================
+networks:
+  app-network:
+    driver: bridge
+    name: spec-locator-network
+
+# =============================================================================
+# Volume 配置（可选：如果需要使用命名 Volume）
+# =============================================================================
+# volumes:
+#   output_pages:
+#     driver: local
+#   uploads:
+#     driver: local
+#   logs:
+#     driver: local

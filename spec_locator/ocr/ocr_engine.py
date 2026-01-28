@@ -39,7 +39,7 @@ class TextBox:
 class OCREngine:
     """OCR 引擎（支持懒加载）"""
 
-    def __init__(self, use_gpu: bool = False, conf_threshold: float = 0.3, lazy_load: bool = True):
+    def __init__(self, use_gpu: bool = True, conf_threshold: float = 0.3, lazy_load: bool = True):
         """
         初始化 OCR 引擎（懒加载模式）
 
