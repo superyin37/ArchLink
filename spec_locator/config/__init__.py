@@ -15,6 +15,7 @@ from spec_locator.config.config import (
     APIConfig,
     PathConfig,
     LOG_LEVEL,
+    LLMConfig,  # 新增
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "APIConfig",
     "PathConfig",
     "LOG_LEVEL",
+    "LLMConfig",  # 新增
 ]

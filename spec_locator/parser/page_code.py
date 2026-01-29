@@ -1,189 +1,298 @@
 """
-页码识别与空间组合模块
-- 识别页码的组成部分
-- 结合空间关系进行页码组合
+页码识别模块（终版：子串 Anchor + 上下结构解析）
 """
 
 import re
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 from dataclasses import dataclass
 
-from spec_locator.config import PAGE_PREFIX_PATTERN, PAGE_SUFFIX_PATTERN
 from spec_locator.ocr.ocr_engine import TextBox
 from spec_locator.parser.geometry import GeometryCalculator
 
 logger = logging.getLogger(__name__)
 
 
+# ======================================================
+# Data Structures
+# ======================================================
+
 @dataclass
 class PageCode:
-    """页码数据"""
-    page: str  # 完整页码（如 C11-2）
-    confidence: float  # 置信度
-    source_indices: List[int]  # 源文本框索引列表
+    page: str
+    confidence: float
+    source_indices: List[int]
 
 
 @dataclass
-class PagePart:
-    """页码部分（前缀或后缀）"""
-    text: str  # 文本
-    part_type: str  # 'prefix' 或 'suffix'
-    confidence: float  # 置信度
-    source_idx: int  # 源文本框索引
+class PageCandidate:
+    text: str
+    confidence: float
+    source_idx: int
+    distance: float
+    score: float
+    center: Tuple[float, float]
 
 
-class PageCodeParser:
-    """页码解析器"""
+# ======================================================
+# Utils
+# ======================================================
 
-    def __init__(self, max_distance: int = 100):
-        """
-        初始化
+def normalize_text(text: str) -> str:
+    """统一文本格式"""
+    return re.sub(r"\s+", "", text).upper()
 
-        Args:
-            max_distance: 最大搜索距离
-        """
-        self.geometry = GeometryCalculator(max_distance=max_distance)
 
-    def parse(self, text_boxes: List[TextBox]) -> List[PageCode]:
-        """
-        从文本框列表中识别页码
+def deduplicate_pages(pages: List[PageCode]) -> List[PageCode]:
+    """去重页码，保留最高置信度"""
+    table = {}
 
-        Args:
-            text_boxes: OCR 识别的文本框列表
+    for p in pages:
+        key = p.page.upper()
+        if key not in table or p.confidence > table[key].confidence:
+            table[key] = p
 
-        Returns:
-            页码列表
-        """
-        # 1. 提取页码部分（前缀和后缀）
-        page_parts = self._extract_page_parts(text_boxes)
+    return list(table.values())
 
-        if not page_parts:
-            logger.warning("No page parts found")
+
+# ======================================================
+# Anchor-based Extractor
+# ======================================================
+
+class PageByAnchorExtractor:
+    """
+    基于规范号锚点的页码提取器（子串匹配版）
+    """
+
+    # 子串规范号匹配（核心）
+    ANCHOR_PATTERN = re.compile(
+        r'(?<!\d)([A-Z]{0,2}\d{2,3}[A-Z]+\d{1,4}(?:-\d+)?)(?!\d)',
+        re.IGNORECASE
+    )
+
+    # 页码格式
+    PAGE_PATTERN = re.compile(r'^[A-Z]?\d+$', re.IGNORECASE)
+
+    MAX_DIGITS = 3   # 防止 1200 / 2000
+
+    def __init__(
+        self,
+        radius: int = 300,
+        x_thresh: int = 18,
+        y_thresh: int = 25,
+        conf_min: float = 0.5,
+        eps: float = 1e-6,
+    ):
+        self.radius = radius
+        self.x_thresh = x_thresh
+        self.y_thresh = y_thresh
+        self.conf_min = conf_min
+        self.eps = eps
+
+        self.geometry = GeometryCalculator(max_distance=radius)
+
+    # --------------------------------------------------
+    # Main
+    # --------------------------------------------------
+
+    def extract(self, boxes: List[TextBox]) -> List[PageCode]:
+
+        anchors = self._find_anchors(boxes)
+
+        if not anchors:
+            logger.warning("No anchor found")
             return []
 
-        # 2. 组合页码前缀和后缀
-        page_codes = self._combine_page_parts(page_parts, text_boxes)
+        results: List[PageCode] = []
 
-        logger.info(f"Parsed {len(page_codes)} page codes")
-        return page_codes
+        for anchor_idx, anchor_box, spec in anchors:
 
-    def _extract_page_parts(self, text_boxes: List[TextBox]) -> List[PagePart]:
-        """
-        提取页码的前缀和后缀部分
+            candidates = self._find_candidates(
+                anchor_idx, anchor_box, boxes
+            )
 
-        Args:
-            text_boxes: 文本框列表
-
-        Returns:
-            页码部分列表
-        """
-        page_parts = []
-
-        for idx, box in enumerate(text_boxes):
-            text = box.text.strip()
-
-            # 检查是否为前缀（如 C11, P25）
-            prefix_match = re.match(PAGE_PREFIX_PATTERN, text)
-            if prefix_match:
-                page_parts.append(
-                    PagePart(
-                        text=text,
-                        part_type="prefix",
-                        confidence=box.confidence,
-                        source_idx=idx,
-                    )
-                )
+            if not candidates:
                 continue
 
-            # 检查是否为纯数字后缀（如 2, 3）
-            # 单独的 1-2 位数字，且相信度较高
-            if re.match(r"^\\d{1,2}$", text) and box.confidence > 0.7:
-                page_parts.append(
-                    PagePart(
-                        text=text,
-                        part_type="suffix",
-                        confidence=box.confidence,
-                        source_idx=idx,
-                    )
-                )
+            # 按 score 排序（关键）
+            candidates.sort(key=lambda c: c.score, reverse=True)
 
-        return page_parts
+            top = candidates[:2]
 
-    def _combine_page_parts(
-        self, page_parts: List[PagePart], text_boxes: List[TextBox]
-    ) -> List[PageCode]:
-        """
-        组合页码前缀和后缀
-
-        Args:
-            page_parts: 页码部分列表
-            text_boxes: 原始文本框列表
-
-        Returns:
-            完整的页码列表
-        """
-        page_codes = []
-
-        for prefix in page_parts:
-            if prefix.part_type != "prefix":
-                continue
-
-            # 在后缀中查找最近的（通常在右侧或下方）
-            prefix_box = text_boxes[prefix.source_idx]
-            candidates = []
-
-            for suffix in page_parts:
-                if suffix.part_type != "suffix":
-                    continue
-
-                suffix_box = text_boxes[suffix.source_idx]
-
-                # 检查是否相邻（前缀和后缀应该距离较近）
-                if self.geometry.is_neighbor(prefix_box, suffix_box, max_distance=150):
-                    direction = self.geometry.get_direction(prefix_box, suffix_box)
-
-                    # 通常后缀在前缀的右侧或下方
-                    if direction in ["right", "below", "diag_br"]:
-                        distance = self.geometry.calculate_distance(prefix_box, suffix_box)
-                        candidates.append(
-                            (suffix, distance, direction)
-                        )
-
-            # 选择距离最近的后缀
-            if candidates:
-                best_suffix, _, _ = min(candidates, key=lambda x: x[1])
-                combined_page = f"{prefix.text}-{best_suffix.text}"
-                combined_confidence = (
-                    prefix.confidence + best_suffix.confidence
-                ) / 2
-                page_codes.append(
-                    PageCode(
-                        page=combined_page,
-                        confidence=combined_confidence,
-                        source_indices=[prefix.source_idx, best_suffix.source_idx],
-                    )
-                )
+            # 上下圆结构判断
+            if len(top) == 2 and self._is_vertical_pair(top[0], top[1]):
+                chosen = max(top, key=lambda c: c.center[1])
             else:
-                # 如果没有找到后缀，仅返回前缀
-                page_codes.append(
-                    PageCode(
-                        page=prefix.text,
-                        confidence=prefix.confidence,
-                        source_indices=[prefix.source_idx],
-                    )
+                chosen = top[0]
+
+            results.append(
+                PageCode(
+                    page=chosen.text,
+                    confidence=chosen.score,
+                    source_indices=[chosen.source_idx],
                 )
+            )
 
-        # 去重与排序
-        page_codes = self._deduplicate_pages(page_codes)
-        return page_codes
+        results = deduplicate_pages(results)
 
-    def _deduplicate_pages(self, page_codes: List[PageCode]) -> List[PageCode]:
-        """去重页码，保留置信度最高的"""
-        page_dict = {}
-        for page_code in page_codes:
-            key = page_code.page
-            if key not in page_dict or page_code.confidence > page_dict[key].confidence:
-                page_dict[key] = page_code
+        logger.info(f"Anchor parser: {len(results)} pages")
 
-        return list(page_dict.values())
+        return results
+
+    # --------------------------------------------------
+    # Anchor Detection
+    # --------------------------------------------------
+
+    def _find_anchors(self, boxes):
+
+        anchors = []
+
+        for idx, box in enumerate(boxes):
+
+            text = normalize_text(box.text)
+            m = self.ANCHOR_PATTERN.search(text)
+
+            if m:
+                print(f"Found anchor '{m.group(1)}' in box '{text}'")
+                spec = m.group(1).upper()
+                anchors.append((idx, box, spec))
+
+        return anchors
+
+    # --------------------------------------------------
+    # Candidate Search
+    # --------------------------------------------------
+
+    def _find_candidates(
+        self,
+        anchor_idx: int,
+        anchor_box: TextBox,
+        boxes: List[TextBox],
+    ) -> List[PageCandidate]:
+
+        candidates = []
+
+        for idx, box in enumerate(boxes):
+            
+            if idx == anchor_idx:
+                continue
+
+            text = normalize_text(box.text)
+            distance = self.geometry.calculate_distance(
+                anchor_box, box
+            )
+            print("dist:", distance, "radius:", self.radius, "text:", text)
+            if not text:
+                continue
+
+            # 页码过滤
+            if not self.PAGE_PATTERN.match(text):
+                continue
+
+            # 防止规范号混入
+            if self.ANCHOR_PATTERN.search(text):
+                continue
+
+            # 防止尺寸干扰
+            if text.isdigit() and len(text) > self.MAX_DIGITS:
+                continue
+
+            if box.confidence < self.conf_min:
+                continue
+
+            
+
+            if distance > self.radius:
+                continue
+
+            score = box.confidence / (distance + self.eps)
+            print(f"  Candidate '{text}' (conf: {box.confidence:.2f}, dist: {distance:.1f}, score: {score:.4f})")
+            candidates.append(
+                PageCandidate(
+                    text=text,
+                    confidence=box.confidence,
+                    source_idx=idx,
+                    distance=distance,
+                    score=score,
+                    center=box.get_center(),
+                )
+            )
+        return candidates
+
+    # --------------------------------------------------
+    # Layout Analysis
+    # --------------------------------------------------
+
+    def _is_vertical_pair(self, a: PageCandidate, b: PageCandidate) -> bool:
+
+        return (
+            abs(a.center[0] - b.center[0]) < self.x_thresh
+            and abs(a.center[1] - b.center[1]) > self.y_thresh
+        )
+
+
+# ======================================================
+# Fallback Parser
+# ======================================================
+
+class LegacyPageParser:
+    """
+    安全兜底解析器（仅识别最基本页码）
+    """
+
+    PAGE_PATTERN = re.compile(r'^[A-Z]?\d+$', re.IGNORECASE)
+
+    def parse(self, boxes: List[TextBox]) -> List[PageCode]:
+
+        results = []
+
+        for idx, box in enumerate(boxes):
+
+            text = normalize_text(box.text)
+
+            if not self.PAGE_PATTERN.match(text):
+                continue
+
+            if box.confidence < 0.6:
+                continue
+
+            results.append(
+                PageCode(
+                    page=text,
+                    confidence=box.confidence,
+                    source_indices=[idx],
+                )
+            )
+
+        return deduplicate_pages(results)
+
+
+# ======================================================
+# Unified Interface
+# ======================================================
+
+class PageCodeParser:
+    """
+    页码解析统一接口（Anchor → Fallback）
+    """
+
+    def __init__(self, max_distance: int = 300):
+
+        self.anchor_parser = PageByAnchorExtractor(
+            radius=max_distance
+        )
+
+        self.legacy_parser = LegacyPageParser()
+
+    def parse(self, boxes: List[TextBox]) -> List[PageCode]:
+
+        # 主策略
+        pages = self.anchor_parser.extract(boxes)
+
+        if pages:
+            return pages
+
+        logger.warning("Fallback to legacy parser")
+
+        # 兜底
+        return self.legacy_parser.parse(boxes)

@@ -228,12 +228,152 @@
         .btn-clear:hover {
             background: #555;
         }
+
+        /* 识别方式选择器样式 */
+        .method-selector {
+            margin: 30px 0;
+        }
+
+        .method-selector h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .radio-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .radio-card {
+            cursor: pointer;
+            display: block;
+        }
+
+        .radio-card input[type="radio"] {
+            display: none;
+        }
+
+        .card-content {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            background: white;
+            position: relative;
+        }
+
+        .radio-card input[type="radio"]:checked + .card-content {
+            border-color: #667eea;
+            background: #f0f2ff;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .card-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .card-desc {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .card-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .card-badge.recommended {
+            background: #ffd700;
+            color: #333;
+        }
+
+        .card-badge.accuracy {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .card-badge.best {
+            background: #51cf66;
+            color: white;
+        }
+
+        .radio-card:hover .card-content {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🔍 规范定位识别系统</h1>
         <p class="subtitle">上传CAD截图，自动识别规范编号和页码</p>
+
+        <!-- 识别方式选择器 -->
+        <div class="method-selector">
+            <h3>选择识别方式</h3>
+            <div class="radio-group">
+                <label class="radio-card">
+                    <input type="radio" name="method" value="ocr" checked>
+                    <div class="card-content">
+                        <div class="card-icon">⚡</div>
+                        <div class="card-title">OCR识别</div>
+                        <div class="card-desc">快速识别，适合清晰图像</div>
+                        <div class="card-badge recommended">推荐</div>
+                    </div>
+                </label>
+                
+                <label class="radio-card">
+                    <input type="radio" name="method" value="llm">
+                    <div class="card-content">
+                        <div class="card-icon">🤖</div>
+                        <div class="card-title">大模型识别</div>
+                        <div class="card-desc">智能识别，适合复杂场景</div>
+                        <div class="card-badge accuracy">高精度</div>
+                    </div>
+                </label>
+                
+                <label class="radio-card">
+                    <input type="radio" name="method" value="auto">
+                    <div class="card-content">
+                        <div class="card-icon">🎯</div>
+                        <div class="card-title">智能切换</div>
+                        <div class="card-desc">自动选择最佳识别方式</div>
+                        <div class="card-badge best">最佳</div>
+                    </div>
+                </label>
+            </div>
+        </div>
 
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
@@ -279,7 +419,11 @@
     </div>
 
     <script>
-        const API_BASE_URL = '';
+        // 自动检测：如果是 file:// 协议则使用完整 URL，否则使用相对路径
+        const API_BASE_URL = window.location.protocol === 'file:' 
+            ? 'http://127.0.0.1:8002' 
+            : '';
+        
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const previewArea = document.getElementById('previewArea');
@@ -332,7 +476,26 @@
             resultArea.style.display = 'none';
             errorMessage.style.display = 'none';
             
-            // 显示加载动画
+            // 获取选中的识别方式
+            const methodRadios = document.getElementsByName('method');
+            let method = 'ocr';
+            for (const radio of methodRadios) {
+                if (radio.checked) {
+                    method = radio.value;
+                    break;
+                }
+            }
+            
+            // 显示加载动画（根据method显示不同提示）
+            const loadingMessages = {
+                'ocr': '正在快速识别中...',
+                'llm': '大模型分析中，请稍候（可能需要3-5秒）...',
+                'auto': '智能识别中...'
+            };
+            const loadingText = document.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.textContent = loadingMessages[method];
+            }
             loading.style.display = 'block';
 
             // 上传文件
@@ -340,7 +503,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/spec-locate`, {
+                const response = await fetch(`${API_BASE_URL}/api/spec-locate?method=${method}`, {
                     method: 'POST',
                     body: formData
                 });
@@ -352,7 +515,7 @@
                 if (data.success) {
                     displayResult(data);
                 } else {
-                    showError(data.message || '识别失败');
+                    showError(data);
                 }
             } catch (error) {
                 loading.style.display = 'none';
@@ -362,14 +525,39 @@
 
         // 显示识别结果
         function displayResult(data) {
-            const { spec, candidates, file } = data;
+            const { spec, candidates, file, warning, method, metadata } = data;
 
-            // 显示主要结果
-            document.getElementById('specCode').textContent = `规范编号: ${spec.code}`;
+            // 识别方式标签
+            const methodLabels = {
+                'ocr': 'OCR识别',
+                'llm': '大模型识别',
+                'auto': '智能识别'
+            };
+
+            // 清理之前可能存在的警告信息
+            const resultContent = document.querySelector('.result-content');
+            const oldWarnings = resultContent.querySelectorAll('.warning-box');
+            oldWarnings.forEach(w => w.remove());
+
+            // 显示主要结果（添加识别方式标签）
+            const specCodeDiv = document.getElementById('specCode');
+            const methodBadge = method ? `<span class="method-badge">${methodLabels[method] || method}</span>` : '';
+            specCodeDiv.innerHTML = `规范编号: ${spec.code} ${methodBadge}`;
+            
             document.getElementById('pageCode').textContent = `页码: ${spec.page}`;
             document.getElementById('confidence').textContent = `置信度: ${(spec.confidence * 100).toFixed(1)}%`;
 
-            // 如果找到PDF文件，显示下载按钮并自动触发下载
+            // 如果有警告信息（识别成功但未找到文件），显示警告
+            // 注意：只在 file 不存在或 file_found 为 false 时才显示警告
+            if (warning && (!file || !file.download_url)) {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'warning-box';
+                warningDiv.style.cssText = 'background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; margin-top: 15px; border: 1px solid #ffc107;';
+                warningDiv.innerHTML = `<strong>⚠️ 提示：</strong> ${warning}`;
+                resultContent.appendChild(warningDiv);
+            }
+
+            // 如果找到PDF文件，显示下载按钮
             const downloadBtn = document.getElementById('downloadBtn');
             if (file && file.download_url) {
                 downloadBtn.href = `${API_BASE_URL}${file.download_url}`;
@@ -411,8 +599,48 @@
         }
 
         // 显示错误信息
-        function showError(message) {
-            errorMessage.textContent = '❌ ' + message;
+        function showError(errorData) {
+            let errorHtml = '';
+            
+            // 如果是字符串，直接显示
+            if (typeof errorData === 'string') {
+                errorHtml = `❌ ${errorData}`;
+            } else {
+                // 否则是错误对象，显示详细信息
+                errorHtml = `<div style="margin-bottom: 10px;">❌ <strong>${errorData.message || '识别失败'}</strong></div>`;
+                
+                // 显示详细信息
+                if (errorData.details) {
+                    const details = errorData.details;
+                    
+                    // 显示识别到的规范编号
+                    if (details.identified_spec_codes && details.identified_spec_codes.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">✓ 已识别到的规范编号：</div>`;
+                        errorHtml += `<div>${details.identified_spec_codes.join(', ')}</div>`;
+                        errorHtml += `</div>`;
+                    }
+                    
+                    // 显示识别到的页码
+                    if (details.identified_page_codes && details.identified_page_codes.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">✓ 已识别到的页码：</div>`;
+                        errorHtml += `<div>${details.identified_page_codes.join(', ')}</div>`;
+                        errorHtml += `</div>`;
+                    }
+                    
+                    // 显示OCR识别到的文本
+                    if (details.ocr_texts && details.ocr_texts.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">OCR识别到的所有文本 (${details.ocr_count}个)：</div>`;
+                        errorHtml += `<div style="max-height: 120px; overflow-y: auto; font-size: 12px; line-height: 1.6;">`;
+                        errorHtml += details.ocr_texts.map(text => `<div>• ${text}</div>`).join('');
+                        errorHtml += `</div></div>`;
+                    }
+                }
+            }
+            
+            errorMessage.innerHTML = errorHtml;
             errorMessage.style.display = 'block';
         }
 

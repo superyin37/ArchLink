@@ -4,7 +4,11 @@
 
 from spec_locator.parser.geometry import GeometryCalculator, GeometryRelation
 from spec_locator.parser.spec_code import SpecCodeParser, SpecCode
-from spec_locator.parser.page_code import PageCodeParser, PageCode, PagePart
+from spec_locator.parser.page_code import (
+    PageCodeParser,
+    PageByAnchorExtractor,
+    PageCode
+)
 
 __all__ = [
     "GeometryCalculator",
@@ -12,6 +16,6 @@ __all__ = [
     "SpecCodeParser",
     "SpecCode",
     "PageCodeParser",
-    "PageCode",
-    "PagePart",
+    "PageByAnchorExtractor",
+    "PageCode"
 ]

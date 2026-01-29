@@ -16,13 +16,13 @@ import cv2
 import numpy as np
 
 try:
-    from fastapi import FastAPI, File, UploadFile, HTTPException
+    from fastapi import FastAPI, File, UploadFile, HTTPException, Query  # 添加Query
     from fastapi.responses import JSONResponse, FileResponse
     from fastapi.middleware.cors import CORSMiddleware
 except ImportError:
     raise ImportError("FastAPI is required. Install with: pip install fastapi uvicorn")
 
-from spec_locator.config import APIConfig, ErrorCode, ERROR_MESSAGES, PathConfig, LOG_LEVEL, OCRConfig
+from spec_locator.config import APIConfig, ErrorCode, ERROR_MESSAGES, PathConfig, LOG_LEVEL, OCRConfig, LLMConfig  # 添加LLMConfig
 from spec_locator.core import SpecLocatorPipeline
 
 logger = logging.getLogger(__name__)
@@ -52,9 +52,14 @@ async def lifespan(app: FastAPI):
         logger.warning(str(e))
         logger.warning("数据目录不可用，文件查找功能将受限")
     
-    # 初始化 Pipeline（懒加载模式）
-    pipeline = SpecLocatorPipeline(lazy_ocr=OCRConfig.LAZY_LOAD)
-    logger.info(f"✓ Pipeline 初始化完成（OCR 懒加载: {OCRConfig.LAZY_LOAD}）")
+    # 初始化 Pipeline（懒加载模式，支持LLM）
+    # 如果LLM已启用且配置正确，初始化为auto模式以支持LLM调用
+    initial_method = "auto" if (LLMConfig.ENABLED and LLMConfig.validate()) else "ocr"
+    pipeline = SpecLocatorPipeline(
+        lazy_ocr=OCRConfig.LAZY_LOAD,
+        recognition_method=initial_method
+    )
+    logger.info(f"✓ Pipeline 初始化完成（OCR 懒加载: {OCRConfig.LAZY_LOAD}, 识别方式: {initial_method}）")
     
     # 可选：后台异步预热 OCR（不阻塞启动）
     if OCRConfig.WARMUP_ON_STARTUP:
@@ -109,18 +114,28 @@ def health_check():
         "status": "ok",
         "index_stats": stats,
         "ocr_loaded": pipeline.ocr_engine._initialized,  # 显示OCR是否已加载
+        "llm_enabled": LLMConfig.ENABLED,  # 显示LLM是否启用
+        "llm_configured": LLMConfig.validate(),  # 显示LLM是否正确配置
     }
 
 
 @app.post("/api/spec-locate")
-async def locate_spec(file: UploadFile = File(...)):
+async def locate_spec(
+    file: UploadFile = File(...),
+    method: str = Query(
+        default="ocr",
+        pattern="^(ocr|llm|auto)$",
+        description="识别方式: ocr-OCR识别, llm-大模型识别, auto-智能切换"
+    )
+):
     """
-    规范定位识别接口（会触发OCR懒加载）
+    规范定位识别接口（支持多种识别方式）
 
     接收一张 CAD 截图，返回识别到的规范编号和页码
 
     Args:
         file: CAD 截图文件
+        method: 识别方式 (ocr/llm/auto)
 
     Returns:
         JSON 响应
@@ -154,9 +169,16 @@ async def locate_spec(file: UploadFile = File(...)):
             logger.error(f"Failed to decode image: {e}")
             return _error_response(ErrorCode.INVALID_FILE)
 
-        # 3. 调用流水线处理
-        logger.info(f"Processing file: {filename}")
+        # 3. 根据method参数设置识别方式
+        original_method = pipeline.recognition_method
+        pipeline.recognition_method = method
+        
+        # 4. 调用流水线处理
+        logger.info(f"Processing file: {filename} with method: {method}")
         result = pipeline.process(image)
+        
+        # 恢复原始设置
+        pipeline.recognition_method = original_method
 
         return JSONResponse(content=result)
 

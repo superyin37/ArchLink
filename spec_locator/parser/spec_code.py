@@ -127,15 +127,17 @@ class SpecCodeParser:
             logger.debug(f"Length check failed for '{code}' (len={len(code)})")
             return False
 
-        # 前缀检查（前2-3位数字）
-        prefix_match = re.match(r"(\d{2,3})", code)
+        # 前缀检查（可选字母前缀 + 2-3位数字）
+        # 支持如 L13J8, 苏J01, 12J2 等格式
+        prefix_match = re.match(r"([A-Z]{0,2})(\d{2,3})", code)
         if not prefix_match:
-            logger.debug(f"No numeric prefix found in '{code}'")
+            logger.debug(f"No valid prefix found in '{code}'")
             return False
 
-        prefix = prefix_match.group(1)
-        if prefix not in self.VALID_PREFIXES:
-            logger.debug(f"Invalid prefix '{prefix}' in '{code}'")
+        # 验证数字部分
+        numeric_prefix = prefix_match.group(2)
+        if numeric_prefix not in self.VALID_PREFIXES:
+            logger.debug(f"Invalid numeric prefix '{numeric_prefix}' in '{code}'")
             return False
 
         # 字母检查（数字后至少有一个字母）

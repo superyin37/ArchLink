@@ -16,9 +16,8 @@ print("OpenCV:", cv2.__version__)
 # =========================
 def init_ocr():
     attempts = [
-        {"use_textline_orientation": True, "lang": "ch", "use_angle_cls": True},
-        {"use_textline_orientation": True, "lang": "ch", "use_angle_cls": False},
-        {"use_textline_orientation": False, "lang": "ch", "use_angle_cls": False},
+        {"use_textline_orientation": True, "lang": "ch"},
+        {"use_textline_orientation": False, "lang": "ch"},
         {"lang": "ch"},
     ]
 
@@ -51,9 +50,9 @@ def crop_left_bottom(img: np.ndarray) -> np.ndarray:
     裁剪页面左下角区域（比例裁剪，适配不同分辨率）
     """
     h, w, _ = img.shape
-    x1 = int(w * 0.89)
+    x1 = int(w * 0.80)
     x2 = w
-    y1 = int(h * 0.89)
+    y1 = int(h * 0.80)
     y2 = h
     return img[y1:y2, x1:x2]
 
@@ -170,7 +169,8 @@ def extract_filename(text: str) -> str | None:
     页码示例：5-9 / 5 / I
     """
     # 允许尾部 1 到 3 位数字（例如："12J2" 或 "24G912"），仍保持大小写敏感（只匹配大写字母）
-    atlas_pattern = r"\b\d{2}[A-Z]{1,2}\d{1,3}(?:-\d{1,2})?\b"
+    # 支持如 23J909, 06J908-1, L13J8, L13J5-1
+    atlas_pattern = r'([A-Z]{0,2}\d{2,3}[A-Z]+\d{1,4}(?:-\d+)?)'
     atlas_match = re.search(atlas_pattern, text)
 
     if not atlas_match:

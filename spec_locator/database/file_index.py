@@ -105,8 +105,9 @@ class FileIndex:
         # 去除"已识别_"前缀
         dirname = re.sub(r'^已识别_', '', dirname)
 
-        # 匹配规范编号模式：数字+字母+数字，可能带短横线
-        match = re.search(r'(\d{2,3}[A-Z]+\d{1,4}(?:-\d+)?)', dirname, re.IGNORECASE)
+        # 匹配规范编号模式：可选字母前缀 + 数字 + 字母 + 数字，可能带短横线
+        # 支持如 23J909, 06J908-1, L13J8, L13J5-1
+        match = re.search(r'([A-Z]{0,2}\d{2,3}[A-Z]+\d{1,4}(?:-\d+)?)', dirname, re.IGNORECASE)
         if match:
             return match.group(1).upper()
 
@@ -173,6 +174,26 @@ class FileIndex:
                     if self._page_match(spec_file.page_code, page_code):
                         logger.info(f"Found fuzzy match: {spec_file.file_name}")
                         return spec_file
+
+        # 尝试基础页码匹配（如 CQ1-4 找不到时尝试 CQ1）
+        if '-' in page_code:
+            base_page = page_code.split('-')[0]
+            logger.debug(f"Trying base page code: {base_page} (original: {page_code})")
+            
+            # 用基础页码再次查找
+            if spec_code in self.index:
+                for spec_file in self.index[spec_code]:
+                    if self._page_match(spec_file.page_code, base_page):
+                        logger.info(f"Found base page match: {spec_file.file_name} (matched {base_page} for query {page_code})")
+                        return spec_file
+            
+            # 基础页码也尝试模糊匹配
+            for indexed_code in self.index.keys():
+                if spec_code in indexed_code or indexed_code in spec_code:
+                    for spec_file in self.index[indexed_code]:
+                        if self._page_match(spec_file.page_code, base_page):
+                            logger.info(f"Found base page fuzzy match: {spec_file.file_name} (matched {base_page} for query {page_code})")
+                            return spec_file
 
         logger.warning(f"No file found for {spec_code} page {page_code}")
         return None

@@ -26,7 +26,7 @@ class GeometryRelation:
 class GeometryCalculator:
     """几何关系计算器"""
 
-    def __init__(self, max_distance: int = 100, direction_tolerance: int = 30):
+    def __init__(self, max_distance: int = 300, direction_tolerance: int = 30):
         """
         初始化
 
