@@ -4,6 +4,8 @@
 
 本项目已完成 Docker 化，提供单容器方案，包含：
 - ✅ PaddleOCR 模型预下载
+- ✅ **LLM 视觉模型集成**（支持豆包/OpenAI/Gemini）
+- ✅ **OCR + LLM 混合识别模式**
 - ✅ FastAPI 规范定位服务
 - ✅ Volume 挂载外部数据
 - ✅ 健康检查和自动重启（`restart: always`）
@@ -445,6 +447,12 @@ tar -xzf uploads_backup_20260123.tar.gz
 ---
 
 ## 📝 更新日志
+
+### v1.1.0 (2026-01-30)
+- ✅ **新增 LLM 视觉模型集成**（支持豆包/OpenAI/Gemini）
+- ✅ **OCR + LLM 混合识别模式**
+- ✅ 自动降级机制（LLM 失败时回退到 OCR）
+- ✅ 支持多种大模型提供商配置
 
 ### v1.0.0 (2026-01-23)
 - ✅ 初始 Docker 化版本

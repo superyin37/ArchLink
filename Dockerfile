@@ -8,8 +8,8 @@ FROM python:3.10-slim
 
 # 设置维护者信息
 LABEL maintainer="Yin Hanyang <hanyang.yin@example.com>"
-LABEL description="CAD 截图规范定位识别服务"
-LABEL version="1.0.0"
+LABEL description="CAD 截图规范定位识别服务 (支持OCR+LLM混合识别)"
+LABEL version="1.1.0"
 
 # =============================================================================
 # 系统环境配置

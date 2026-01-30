@@ -17,7 +17,11 @@ services:
     container_name: spec-locator
     
     # 镜像名称和标签
-    image: spec-locator:1.0.0
+    image: spec-locator:1.1.0
+    
+    # 从 .env 文件加载环境变量
+    env_file:
+      - .env
     
     # 容器重启策略：自动重启
     restart: always
@@ -59,6 +63,19 @@ services:
       - OCR_CONF_THRESHOLD=0.3
       - OCR_LAZY_LOAD=true
       - OCR_WARMUP_ON_STARTUP=true
+      
+      # LLM 大模型配置（新增）
+      - LLM_ENABLED=true
+      - LLM_PROVIDER=doubao  # doubao/openai/gemini
+      # - DOUBAO_API_KEY=your-doubao-api-key-here
+      # - OPENAI_API_KEY=your-openai-api-key-here
+      # - GEMINI_API_KEY=your-gemini-api-key-here
+      - LLM_MODEL=doubao-vision-pro  # 根据provider设置对应模型
+      - LLM_TIMEOUT=30
+      - LLM_MAX_RETRIES=2
+      - LLM_AUTO_FALLBACK=true
+      - OCR_CONFIDENCE_THRESHOLD=0.6
+      - LLM_PROMPT_VERSION=v1
       
       # 系统配置
       - TZ=Asia/Shanghai
