@@ -9,16 +9,20 @@ HTTP API 服务层
 import logging
 import os
 import tempfile
+import hashlib
+import time
 from typing import Optional
 from contextlib import asynccontextmanager
 from threading import Thread
 import cv2
 import numpy as np
+import fitz  # PyMuPDF
 
 try:
     from fastapi import FastAPI, File, UploadFile, HTTPException, Query  # 添加Query
     from fastapi.responses import JSONResponse, FileResponse
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.staticfiles import StaticFiles
 except ImportError:
     raise ImportError("FastAPI is required. Install with: pip install fastapi uvicorn")
 
@@ -29,6 +33,10 @@ logger = logging.getLogger(__name__)
 
 # 全局变量：延迟初始化
 pipeline = None
+
+# PDF预览缓存目录
+PREVIEW_CACHE_DIR = os.path.join(PathConfig.TEMP_DIR, "pdf_previews")
+PREVIEW_CACHE_MAX_AGE = 3600  # 缓存1小时
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +51,10 @@ async def lifespan(app: FastAPI):
     
     # 确保必要目录存在
     PathConfig.ensure_dirs()
+    
+    # 创建PDF预览缓存目录
+    os.makedirs(PREVIEW_CACHE_DIR, exist_ok=True)
+    logger.info(f"PDF预览缓存目录: {PREVIEW_CACHE_DIR}")
     
     # 验证数据目录
     try:
@@ -99,6 +111,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 挂载静态文件目录
+static_path = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_path):
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
+    logger.info(f"✓ 静态文件目录已挂载: {static_path}")
+else:
+    logger.warning(f"静态文件目录不存在: {static_path}")
+
+@app.get("/")
+async def read_root():
+    """返回首页"""
+    index_file = os.path.join(static_path, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"message": "Spec Locator Service API", "docs": "/docs"}
+
+@app.get("/demo")
+async def read_demo():
+    """返回演示页面"""
+    demo_file = os.path.join(static_path, "index.html")
+    if os.path.exists(demo_file):
+        return FileResponse(demo_file)
+    return JSONResponse(
+        status_code=404,
+        content={"message": "Demo page not found. Please deploy static files."}
+    )
 
 @app.get("/health")
 def health_check():
@@ -244,6 +283,169 @@ def download_pdf(spec_code: str, page_code: str):
 
     except Exception as e:
         logger.error(f"Download error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error_code": "INTERNAL_ERROR",
+                "message": str(e),
+            },
+        )
+
+
+@app.get("/api/pdf-page-preview")
+async def pdf_page_preview(
+    spec_code: str = Query(..., description="规范编号，如 12J2"),
+    page_code: str = Query(None, description="页码编号，如 C11, 1-11（推荐使用，确保与下载功能一致）"),
+    page_number: int = Query(default=1, ge=1, description="PDF内部页码，从1开始，默认第1页"),
+    dpi: int = Query(default=150, ge=72, le=300, description="图片DPI质量，默认150")
+):
+    """
+    PDF页面预览接口 - 将指定PDF页面转换为图片
+    
+    支持两种调用方式：
+    1. 新方式（推荐）：提供 page_code，使用与下载功能相同的精确查找
+    2. 旧方式（兼容）：不提供 page_code，使用规范下的第一个文件
+    
+    Args:
+        spec_code: 规范编号（如 12J2）
+        page_code: 页码编号（如 C11, 1-11），用于定位具体的PDF文件（可选，推荐提供）
+        page_number: PDF内部页码（从1开始），用于定位文件内的具体页面，默认为1
+        dpi: 图片质量，默认150 DPI
+
+    Returns:
+        图片文件
+    """
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="服务正在初始化中，请稍后重试")
+    
+    try:
+        # 1. 查找PDF文件
+        pdf_file = None
+        
+        if page_code:
+            # 新方式：使用与下载功能相同的精确查找逻辑
+            pdf_file = pipeline.file_index.find_file(spec_code, page_code)
+            
+            if not pdf_file:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "success": False,
+                        "error_code": "FILE_NOT_FOUND",
+                        "message": f"未找到 {spec_code} 页码 {page_code} 对应的PDF文件",
+                        "hint": "请检查规范编号和页码是否正确"
+                    }
+                )
+        else:
+            # 旧方式（向后兼容）：使用规范下的第一个文件
+            logger.warning(f"使用旧API格式（无page_code参数）: spec_code={spec_code}, page_number={page_number}")
+            logger.warning(f"建议更新前端代码以提供page_code参数，确保与下载功能一致")
+            
+            spec_files = pipeline.file_index.get_spec_files(spec_code)
+            
+            if not spec_files:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "success": False,
+                        "error_code": "SPEC_NOT_FOUND",
+                        "message": f"规范 {spec_code} 不存在",
+                        "hint": "建议提供page_code参数以精确定位PDF文件"
+                    }
+                )
+            
+            pdf_file = spec_files[0]
+            logger.info(f"向后兼容模式：使用第一个文件 {pdf_file.file_name}")
+        
+        # 检查文件是否存在
+        if not pdf_file or not os.path.exists(pdf_file.file_path):
+            logger.error(f"File not found on disk: {pdf_file.file_path if pdf_file else 'None'}")
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "error_code": "FILE_NOT_FOUND",
+                    "message": "文件在服务器上不存在",
+                }
+            )
+        
+        pdf_path = pdf_file.file_path
+        
+        # 2. 检查缓存
+        cache_key = f"{spec_code}_{page_code or 'default'}_{page_number}_{dpi}"
+        cache_hash = hashlib.md5(cache_key.encode()).hexdigest()
+        cache_file = os.path.join(PREVIEW_CACHE_DIR, f"{cache_hash}.png")
+        
+        # 如果缓存存在且未过期，直接返回
+        if os.path.exists(cache_file):
+            cache_age = time.time() - os.path.getmtime(cache_file)
+            if cache_age < PREVIEW_CACHE_MAX_AGE:
+                logger.info(f"使用缓存: {cache_key}")
+                return FileResponse(
+                    path=cache_file,
+                    media_type="image/png",
+                    headers={"Cache-Control": f"public, max-age={PREVIEW_CACHE_MAX_AGE}"}
+                )
+        
+        # 3. 转换PDF页面为图片
+        logger.info(f"转换PDF页面: {spec_code} {page_code or '(第一个文件)'} 第{page_number}页 (文件: {pdf_file.file_name}, DPI: {dpi})")
+        
+        try:
+            doc = fitz.open(pdf_path)
+            
+            # 检查页码是否有效
+            if page_number < 1 or page_number > len(doc):
+                doc.close()
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "success": False,
+                        "error_code": "INVALID_PAGE_NUMBER",
+                        "message": f"页码超出范围，PDF共有 {len(doc)} 页",
+                        "total_pages": len(doc)
+                    }
+                )
+            
+            # 获取指定页面（索引从0开始）
+            page = doc.load_page(page_number - 1)
+            
+            # 设置缩放比例（DPI转换为缩放因子）
+            zoom = dpi / 72  # 72是PDF的默认DPI
+            mat = fitz.Matrix(zoom, zoom)
+            
+            # 渲染为图片
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            
+            # 保存到缓存
+            pix.save(cache_file)
+            
+            doc.close()
+            
+            logger.info(f"PDF页面转换成功: {cache_file}")
+            
+            # 返回图片
+            return FileResponse(
+                path=cache_file,
+                media_type="image/png",
+                headers={"Cache-Control": f"public, max-age={PREVIEW_CACHE_MAX_AGE}"}
+            )
+            
+        except Exception as e:
+            logger.error(f"PDF转换失败: {e}", exc_info=True)
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "error_code": "CONVERSION_ERROR",
+                    "message": f"PDF转换失败: {str(e)}",
+                }
+            )
+    
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"预览错误: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={

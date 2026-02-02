@@ -35,8 +35,13 @@ uvicorn spec_locator.api.server:app --host 0.0.0.0 --port 8002
 浏览器打开
 http://127.0.0.1:8002/docs
 
-演示页面
-file:///D:/projects/liuzong/spec_locator/api/demo.html
+演示页面（本地）
+http://127.0.0.1:8002/
+http://127.0.0.1:8002/demo
+
+AWS 部署后访问
+http://<EC2公网IP>:8002/
+http://<EC2公网IP>:8002/docs
 
 ## 功能特性
 

@@ -74,6 +74,9 @@ RUN mkdir -p /root/.paddleocr
 # 复制 spec_locator 目录
 COPY spec_locator/ /app/spec_locator/
 
+# 确保静态文件目录存在
+RUN mkdir -p /app/spec_locator/api/static
+
 # 创建必要的工作目录
 RUN mkdir -p /app/uploads \
     /app/temp \

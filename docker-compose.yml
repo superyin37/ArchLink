@@ -39,47 +39,7 @@ services:
       - ./spec_locator/uploads:/app/uploads:rw
       - ./spec_locator/logs:/app/logs:rw
       - ./spec_locator/temp:/app/temp:rw
-    
-    # 环境变量配置
-    environment:
-      # 数据目录（容器内路径）
-      - SPEC_DATA_DIR=/app/data/output_pages
-      - SPEC_UPLOAD_DIR=/app/uploads
-      - SPEC_TEMP_DIR=/app/temp
-      - SPEC_LOG_DIR=/app/logs
-      
-      # API 服务配置
-      - API_HOST=0.0.0.0
-      - API_PORT=8002
-      - API_WORKERS=4
-      
-      # 日志配置
-      - LOG_LEVEL=INFO
-      - DEBUG=false
-      
-      # OCR 配置
-      - OCR_USE_GPU=false
-      - OCR_PRECISION=fp32
-      - OCR_CONF_THRESHOLD=0.3
-      - OCR_LAZY_LOAD=true
-      - OCR_WARMUP_ON_STARTUP=true
-      
-      # LLM 大模型配置（新增）
-      - LLM_ENABLED=true
-      - LLM_PROVIDER=doubao  # doubao/openai/gemini
-      # - DOUBAO_API_KEY=your-doubao-api-key-here
-      # - OPENAI_API_KEY=your-openai-api-key-here
-      # - GEMINI_API_KEY=your-gemini-api-key-here
-      - LLM_MODEL=doubao-vision-pro  # 根据provider设置对应模型
-      - LLM_TIMEOUT=30
-      - LLM_MAX_RETRIES=2
-      - LLM_AUTO_FALLBACK=true
-      - OCR_CONFIDENCE_THRESHOLD=0.6
-      - LLM_PROMPT_VERSION=v1
-      
-      # 系统配置
-      - TZ=Asia/Shanghai
-      - PYTHONIOENCODING=utf-8
+  
     
     # 资源限制（可选，根据实际情况调整）
     deploy:

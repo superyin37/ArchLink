@@ -4,6 +4,22 @@
 
 import os
 from enum import Enum
+from pathlib import Path
+
+# 加载.env文件
+try:
+    from dotenv import load_dotenv
+    # 查找.env文件：先查找spec_locator目录，再查找项目根目录
+    env_file = Path(__file__).parent.parent / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+    else:
+        # 尝试项目根目录
+        env_file = Path(__file__).parent.parent.parent / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+except ImportError:
+    pass  # 如果没有安装python-dotenv，继续使用系统环境变量
 
 # ===== 基础配置 =====
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"

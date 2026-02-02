@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>规范定位识别 - 演示页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+
+        .upload-area.hidden {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .preview-area {
+            margin-top: 20px;
+            display: none;
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid #667eea;
+        }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .preview-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-info {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .preview-img-container {
+            background: white;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .preview-img {
+            max-width: 100%;
+            display: block;
+            border-radius: 8px;
+        }
+
+        .result-area {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .result-info {
+            flex: 1;
+        }
+
+        .spec-code {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .page-code {
+            font-size: 24px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .confidence {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .download-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .candidates-area {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .candidates-title {
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .candidate-item {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .btn-clear {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-clear:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        /* 识别方式选择器样式 */
+        .method-selector {
+            margin: 30px 0;
+        }
+
+        .method-selector h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .radio-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .radio-card {
+            cursor: pointer;
+            display: block;
+        }
+
+        .radio-card input[type="radio"] {
+            display: none;
+        }
+
+        .card-content {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+            background: white;
+            position: relative;
+        }
+
+        .radio-card input[type="radio"]:checked + .card-content {
+            border-color: #667eea;
+            background: #f0f2ff;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .card-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .card-desc {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .card-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .card-badge.recommended {
+            background: #ffd700;
+            color: #333;
+        }
+
+        .card-badge.accuracy {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .card-badge.best {
+            background: #51cf66;
+            color: white;
+        }
+
+        .radio-card:hover .card-content {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .method-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* PDF预览区域样式 */
+        .pdf-preview-area {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .pdf-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .pdf-preview-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pdf-preview-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .pdf-page-info {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .pdf-nav-btn {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .pdf-nav-btn:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .pdf-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .pdf-preview-image-container {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            position: relative;
+            min-height: 200px;
+        }
+
+        .pdf-preview-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            cursor: zoom-in;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .pdf-preview-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: #666;
+        }
+
+        .pdf-preview-error {
+            color: #ff4444;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        /* 图片点击放大模态框 */
+        .image-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            max-width: 95%;
+            max-height: 95%;
+            object-fit: contain;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .modal-close:hover {
+            color: #bbb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 规范定位识别系统</h1>
+        <p class="subtitle">上传CAD截图，自动识别规范编号和页码</p>
+
+        <!-- 识别方式选择器 -->
+        <div class="method-selector">
+            <h3>选择识别方式</h3>
+            <div class="radio-group">
+                <label class="radio-card">
+                    <input type="radio" name="method" value="ocr" checked>
+                    <div class="card-content">
+                        <div class="card-icon">⚡</div>
+                        <div class="card-title">OCR识别</div>
+                        <div class="card-desc">快速识别，适合清晰图像</div>
+                        <div class="card-badge recommended">推荐</div>
+                    </div>
+                </label>
+                
+                <label class="radio-card">
+                    <input type="radio" name="method" value="llm">
+                    <div class="card-content">
+                        <div class="card-icon">🤖</div>
+                        <div class="card-title">大模型识别</div>
+                        <div class="card-desc">智能识别，适合复杂场景</div>
+                        <div class="card-badge accuracy">高精度</div>
+                    </div>
+                </label>
+                
+                <label class="radio-card">
+                    <input type="radio" name="method" value="auto">
+                    <div class="card-content">
+                        <div class="card-icon">🎯</div>
+                        <div class="card-title">智能切换</div>
+                        <div class="card-desc">自动选择最佳识别方式</div>
+                        <div class="card-badge best">最佳</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">点击或拖拽图片到此处上传</div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <div class="preview-area" id="previewArea">
+            <div class="preview-header">
+                <div class="preview-title">
+                    <span>📸</span>
+                    <span>已上传图片</span>
+                </div>
+                <button class="btn-clear" onclick="clearAll()">🔄 重新上传</button>
+            </div>
+            <div class="file-info" id="fileInfo"></div>
+            <div class="preview-img-container">
+                <img id="previewImg" class="preview-img" alt="预览图">
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>正在识别中，请稍候...</div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="result-area" id="resultArea">
+            <div class="result-card">
+                <div class="result-title">
+                    ✅ 识别结果
+                </div>
+                <div class="result-content">
+                    <div class="result-info">
+                        <div class="spec-code" id="specCode"></div>
+                        <div class="page-code" id="pageCode"></div>
+                        <div class="confidence" id="confidence"></div>
+                    </div>
+                    <a id="downloadBtn" class="download-btn" style="display: none;">
+                        <span>⬇️</span>
+                        <span>下载PDF</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="candidates-area" id="candidatesArea" style="display: none;">
+                <div class="candidates-title">其他候选结果</div>
+                <div id="candidatesList"></div>
+            </div>
+
+            <!-- PDF预览区域 -->
+            <div class="pdf-preview-area" id="pdfPreviewArea" style="display: none;">
+                <div class="pdf-preview-header">
+                    <div class="pdf-preview-title">
+                        <span>📝</span>
+                        <span>PDF页面预览</span>
+                    </div>
+                </div>
+                <div class="pdf-preview-image-container" id="pdfPreviewContainer">
+                    <div class="pdf-preview-loading" id="pdfPreviewLoading">
+                        <div class="spinner"></div>
+                        <div>加载预览中...</div>
+                    </div>
+                    <img id="pdfPreviewImage" class="pdf-preview-image" style="display: none;" alt="PDF页面预览" onclick="openImageModal(this.src)">
+                    <div class="pdf-preview-error" id="pdfPreviewError" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片放大模态框 -->
+    <div id="imageModal" class="image-modal" onclick="closeImageModal()">
+        <span class="modal-close" onclick="closeImageModal()">&times;</span>
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <script>
+        // 自动检测：如果是 file:// 协议则使用完整 URL，否则使用相对路径
+        const API_BASE_URL = window.location.protocol === 'file:' 
+            ? 'http://127.0.0.1:8002' 
+            : '';
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewArea = document.getElementById('previewArea');
+        const previewImg = document.getElementById('previewImg');
+        const loading = document.getElementById('loading');
+        const resultArea = document.getElementById('resultArea');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // 点击上传区域触发文件选择
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // 文件选择事件
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // 处理文件
+        async function handleFile(file) {
+            // 隐藏上传框
+            uploadArea.classList.add('hidden');
+            
+            // 显示预览
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                previewArea.style.display = 'block';
+                
+                // 显示文件信息
+                const fileSize = (file.size / 1024).toFixed(1);
+                const fileInfo = document.getElementById('fileInfo');
+                fileInfo.textContent = `${file.name} (${fileSize} KB)`;
+            };
+            reader.readAsDataURL(file);
+
+            // 隐藏之前的结果
+            resultArea.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            // 获取选中的识别方式
+            const methodRadios = document.getElementsByName('method');
+            let method = 'ocr';
+            for (const radio of methodRadios) {
+                if (radio.checked) {
+                    method = radio.value;
+                    break;
+                }
+            }
+            
+            // 显示加载动画（根据method显示不同提示）
+            const loadingMessages = {
+                'ocr': '正在快速识别中...',
+                'llm': '大模型分析中，请稍候（可能需要3-5秒）...',
+                'auto': '智能识别中...'
+            };
+            const loadingText = document.querySelector('.loading-text');
+            if (loadingText) {
+                loadingText.textContent = loadingMessages[method];
+            }
+            loading.style.display = 'block';
+
+            // 上传文件
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/spec-locate?method=${method}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+
+                if (data.success) {
+                    displayResult(data);
+                } else {
+                    showError(data);
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                showError('网络错误：' + error.message);
+            }
+        }
+
+        // 显示识别结果
+        function displayResult(data) {
+            const { spec, candidates, file, warning, method, metadata } = data;
+
+            // 识别方式标签
+            const methodLabels = {
+                'ocr': 'OCR识别',
+                'llm': '大模型识别',
+                'auto': '智能识别'
+            };
+
+            // 清理之前可能存在的警告信息
+            const resultContent = document.querySelector('.result-content');
+            const oldWarnings = resultContent.querySelectorAll('.warning-box');
+            oldWarnings.forEach(w => w.remove());
+
+            // 显示主要结果（添加识别方式标签）
+            const specCodeDiv = document.getElementById('specCode');
+            const methodBadge = method ? `<span class="method-badge">${methodLabels[method] || method}</span>` : '';
+            specCodeDiv.innerHTML = `规范编号: ${spec.code} ${methodBadge}`;
+            
+            document.getElementById('pageCode').textContent = `页码: ${spec.page}`;
+            document.getElementById('confidence').textContent = `置信度: ${(spec.confidence * 100).toFixed(1)}%`;
+
+            // 如果有警告信息（识别成功但未找到文件），显示警告
+            // 注意：只在 file 不存在或 file_found 为 false 时才显示警告
+            if (warning && (!file || !file.download_url)) {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'warning-box';
+                warningDiv.style.cssText = 'background: #fff3cd; color: #856404; padding: 10px; border-radius: 8px; margin-top: 15px; border: 1px solid #ffc107;';
+                warningDiv.innerHTML = `<strong>⚠️ 提示：</strong> ${warning}`;
+                resultContent.appendChild(warningDiv);
+            }
+
+            // 如果找到PDF文件，显示下载按钮
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (file && file.download_url) {
+                downloadBtn.href = `${API_BASE_URL}${file.download_url}`;
+                downloadBtn.download = file.name;
+                downloadBtn.style.display = 'flex';
+                
+                // 可选：自动触发下载（用户可能觉得突兀，建议保留手动下载）
+                // setTimeout(() => {
+                //     downloadBtn.click();
+                // }, 500);
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+
+            // 显示候选结果
+            if (candidates && candidates.length > 1) {
+                const candidatesArea = document.getElementById('candidatesArea');
+                const candidatesList = document.getElementById('candidatesList');
+                candidatesList.innerHTML = '';
+
+                candidates.slice(1, 6).forEach(candidate => {
+                    const item = document.createElement('div');
+                    item.className = 'candidate-item';
+                    item.innerHTML = `
+                        <div>
+                            <strong>${candidate.code}</strong> - 页码: ${candidate.page}
+                        </div>
+                        <div style="color: #667eea; font-weight: bold;">
+                            ${(candidate.confidence * 100).toFixed(1)}%
+                        </div>
+                    `;
+                    candidatesList.appendChild(item);
+                });
+
+                candidatesArea.style.display = 'block';
+            }
+
+            resultArea.style.display = 'block';
+
+            // 加载PDF预览（如果找到了PDF文件）
+            if (file && file.download_url) {
+                loadPdfPreview(spec.code, spec.page);
+            } else {
+                // 隐藏PDF预览区域
+                document.getElementById('pdfPreviewArea').style.display = 'none';
+            }
+        }
+
+        // 显示错误信息
+        function showError(errorData) {
+            let errorHtml = '';
+            
+            // 如果是字符串，直接显示
+            if (typeof errorData === 'string') {
+                errorHtml = `❌ ${errorData}`;
+            } else {
+                // 否则是错误对象，显示详细信息
+                errorHtml = `<div style="margin-bottom: 10px;">❌ <strong>${errorData.message || '识别失败'}</strong></div>`;
+                
+                // 显示详细信息
+                if (errorData.details) {
+                    const details = errorData.details;
+                    
+                    // 显示识别到的规范编号
+                    if (details.identified_spec_codes && details.identified_spec_codes.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">✓ 已识别到的规范编号：</div>`;
+                        errorHtml += `<div>${details.identified_spec_codes.join(', ')}</div>`;
+                        errorHtml += `</div>`;
+                    }
+                    
+                    // 显示识别到的页码
+                    if (details.identified_page_codes && details.identified_page_codes.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">✓ 已识别到的页码：</div>`;
+                        errorHtml += `<div>${details.identified_page_codes.join(', ')}</div>`;
+                        errorHtml += `</div>`;
+                    }
+                    
+                    // 显示OCR识别到的文本
+                    if (details.ocr_texts && details.ocr_texts.length > 0) {
+                        errorHtml += `<div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 5px;">`;
+                        errorHtml += `<div style="font-weight: bold; margin-bottom: 5px;">OCR识别到的所有文本 (${details.ocr_count}个)：</div>`;
+                        errorHtml += `<div style="max-height: 120px; overflow-y: auto; font-size: 12px; line-height: 1.6;">`;
+                        errorHtml += details.ocr_texts.map(text => `<div>• ${text}</div>`).join('');
+                        errorHtml += `</div></div>`;
+                    }
+                }
+            }
+            
+            errorMessage.innerHTML = errorHtml;
+            errorMessage.style.display = 'block';
+        }
+
+        // 清除所有内容
+        function clearAll() {
+            fileInput.value = '';
+            previewArea.style.display = 'none';
+            resultArea.style.display = 'none';
+            errorMessage.style.display = 'none';
+            loading.style.display = 'none';
+            uploadArea.classList.remove('hidden');
+            
+            // 清除PDF预览
+            document.getElementById('pdfPreviewArea').style.display = 'none';
+            currentPdfState = null;
+        }
+
+        // PDF预览状态
+        let currentPdfState = null;
+
+        // 加载PDF预览
+        async function loadPdfPreview(specCode, pageCode) {
+            const pdfPreviewArea = document.getElementById('pdfPreviewArea');
+            const pdfPreviewImage = document.getElementById('pdfPreviewImage');
+            const pdfPreviewLoading = document.getElementById('pdfPreviewLoading');
+            const pdfPreviewError = document.getElementById('pdfPreviewError');
+            
+            // 显示PDF预览区域
+            pdfPreviewArea.style.display = 'block';
+            
+            // 显示加载状态
+            pdfPreviewLoading.style.display = 'flex';
+            pdfPreviewImage.style.display = 'none';
+            pdfPreviewError.style.display = 'none';
+            
+            try {
+                // 请求PDF页面预览 - 使用识别结果中的page_code和默认显示第1页
+                const response = await fetch(
+                    `${API_BASE_URL}/api/pdf-page-preview?spec_code=${encodeURIComponent(specCode)}&page_code=${encodeURIComponent(pageCode)}&page_number=1&dpi=150`
+                );
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to load preview');
+                }
+                
+                // 获取图片URL
+                const imageBlob = await response.blob();
+                const imageUrl = URL.createObjectURL(imageBlob);
+                
+                // 显示图片
+                pdfPreviewImage.src = imageUrl;
+                pdfPreviewImage.style.display = 'block';
+                pdfPreviewLoading.style.display = 'none';
+                
+            } catch (error) {
+                console.error('PDF preview error:', error);
+                pdfPreviewLoading.style.display = 'none';
+                pdfPreviewError.style.display = 'block';
+                pdfPreviewError.textContent = `无法加载预览: ${error.message}`;
+            }
+        }
+
+        // 图片放大功能
+        function openImageModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImage');
+            modal.classList.add('show');
+            modalImg.src = imageSrc;
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            modal.classList.remove('show');
+        }
+    </script>
+</body>
+</html>
